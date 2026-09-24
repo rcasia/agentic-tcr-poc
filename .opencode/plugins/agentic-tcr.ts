@@ -21,6 +21,8 @@ export const AgenticTcrPlugin = async (context: PluginContext) => {
   const state = createOpenCodeTcrPluginState(context.worktree || context.directory);
   const message = `Agentic TCR activo en ${context.worktree || context.directory}`;
 
+  console.log(`[agentic-tcr] ${message}`);
+
   await Promise.allSettled([
     context.client?.app?.log?.({
       body: { service: "agentic-tcr", level: "info", message },
