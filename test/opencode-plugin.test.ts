@@ -73,9 +73,14 @@ test("session lifecycle ignores sessions outside the project worktree", () => {
 });
 
 test("local plugin initializes, handles session lifecycle, and disposes", async () => {
+  const notifications: string[] = [];
   const plugin = await AgenticTcrPlugin({
     directory: process.cwd(),
     worktree: process.cwd(),
+    client: {
+      app: { log: async () => notifications.push("log") },
+      tui: { showToast: async () => notifications.push("toast") },
+    },
   });
 
   await plugin.event({
@@ -91,6 +96,7 @@ test("local plugin initializes, handles session lifecycle, and disposes", async 
     },
   });
   await plugin.dispose();
+  assert.deepEqual(notifications.sort(), ["log", "toast"]);
 });
 
 test("plugin verifies a captured mutation with the project verifier", async () => {
