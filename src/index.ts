@@ -1,8 +1,9 @@
 import type { ExecutionContext, Mutation } from "./mutation.js";
 import {
-  RepositoryVerifier,
-  type VerificationResult,
-} from "./verification.js";
+  createProjectVerifier,
+  type ConfiguredProjectVerifier,
+} from "./project-verification.js";
+import type { VerificationResult } from "./verification.js";
 import {
   runWorkflow,
   type RuntimeAdapter,
@@ -57,8 +58,9 @@ export async function runDemo(
     capturedAt: new Date().toISOString(),
   };
   const adapter = options.adapter ?? createDemoAdapter(captured);
+  const configuredVerifier: ConfiguredProjectVerifier = createProjectVerifier(process.cwd());
   const verify = options.verify ??
-    ((mutation: Mutation) => new RepositoryVerifier().verify(mutation));
+    configuredVerifier.verifier;
 
   return runWorkflow(context, adapter, verify);
 }

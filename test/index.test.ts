@@ -57,5 +57,5 @@ test("generic entrypoint carries no runtime-specific dependencies", () => {
     );
   }
   assert.match(indexSource, /runWorkflow/);
-  assert.match(indexSource, /RepositoryVerifier/);
+  assert.match(indexSource, /createProjectVerifier/);
 });
