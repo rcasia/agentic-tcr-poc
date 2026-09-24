@@ -8,6 +8,7 @@
     "dev": "tsx src/index.ts"
   },
   "devDependencies": {
+    "@opencode/client": "^2.0.16",
     "@types/node": "^26.6.2",
     "tsx": "latest",
     "typescript": "latest"

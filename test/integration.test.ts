@@ -10,21 +10,39 @@ import { runWorkflow } from "../src/workflow.js";
 function fakeOpenCodeRuntime(events: string[]): OpenCodeClient {
   return {
     session: {
-      diff: async ({ path, query }) => {
-        events.push(`diff:${path.id}:${query?.messageID ?? "none"}`);
-        return [{ file: "src/changed.ts", additions: 1, deletions: 0 }];
+      diff: async ({ sessionID, from }) => {
+        events.push(`diff:${sessionID}:${from ?? "none"}`);
+        return [{
+          file: "src/changed.ts",
+          patch: "@@ -1 +1 @@",
+          additions: 1,
+          deletions: 0,
+          status: "modified",
+        }];
       },
-      abort: async ({ path }) => {
-        events.push(`abort:${path.id}`);
-        return true;
+      interrupt: async ({ sessionID }) => {
+        events.push(`interrupt:${sessionID}`);
+        return { interrupted: true };
       },
-      revert: async ({ path, body }) => {
-        events.push(`revert:${path.id}:${body.messageID}:${body.partID ?? "none"}`);
-        return true;
+      revert: {
+        stage: async ({ sessionID, messageID }) => {
+          events.push(`revert.stage:${sessionID}:${messageID}`);
+          return {} as never;
+        },
+        commit: async ({ sessionID }) => {
+          events.push(`revert.commit:${sessionID}`);
+        },
       },
-      prompt: async ({ path, body }) => {
-        events.push(`prompt:${path.id}:${body.text}`);
-        return undefined;
+      prompt: async ({ sessionID, text, delivery }) => {
+        events.push(`prompt:${sessionID}:${text}:${delivery ?? "none"}`);
+        return {
+          id: "inbox-1",
+          sessionID,
+          time: { created: 1 },
+          type: "user",
+          payload: { text },
+          delivery: delivery ?? "steer",
+        };
       },
     },
   };
@@ -69,9 +87,10 @@ test("integration FAIL interrupts, restores, feeds back, and continues the same 
   assert.deepEqual(events, [
     "diff:ses-shared:msg-2",
     "verify:exec-fail",
-    "abort:ses-shared",
-    "revert:ses-shared:msg-2:part-2",
-    "prompt:ses-shared:tests failed",
+    "interrupt:ses-shared",
+    "revert.stage:ses-shared:msg-2",
+    "revert.commit:ses-shared",
+    "prompt:ses-shared:tests failed:steer",
   ]);
   assert.equal(result.context, context);
   assert.equal(result.decision.type, "REJECT");

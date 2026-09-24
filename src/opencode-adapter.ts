@@ -1,25 +1,21 @@
+import type {
+  OpenCodeClient as OfficialOpenCodeClient,
+} from "@opencode/client";
 import type { ExecutionContext, Mutation } from "./mutation.js";
 import type { RuntimeAdapter } from "./workflow.js";
 
-export type FileDiff = {
-  file: string;
-  before?: string;
-  after?: string;
-  additions?: number;
-  deletions?: number;
-};
+type OfficialSessionClient = OfficialOpenCodeClient["session"];
 
+/** The subset of the generated OpenCode client used by this adapter. */
 export type OpenCodeClient = {
-  session: {
-    diff(input: { path: { id: string }; query?: { messageID?: string } }): Promise<FileDiff[]>;
-    abort(input: { path: { id: string } }): Promise<boolean>;
-    revert(input: { path: { id: string }; body: { messageID: string; partID?: string } }): Promise<boolean>;
-    prompt(input: { path: { id: string }; body: { text: string } }): Promise<unknown>;
+  session: Pick<OfficialSessionClient, "diff" | "interrupt" | "prompt"> & {
+    revert: Pick<OfficialSessionClient["revert"], "stage" | "commit">;
   };
 };
 
 export type OpenCodeMutationHandle = {
   messageID: string;
+  /** Kept for runtimes exposing part-level restore; v2 restores at message boundaries. */
   partID?: string;
 };
 
@@ -45,8 +41,8 @@ export class OpenCodeAdapter implements RuntimeAdapter {
   async observeMutation(context: ExecutionContext): Promise<Mutation> {
     const handle = this.mutationHandleFor(context);
     const diff = await this.client.session.diff({
-      path: { id: this.sessionId },
-      query: { messageID: handle.messageID },
+      sessionID: this.sessionId,
+      from: handle.messageID,
     });
     const mutationId = `mutation:${context.executionId}:${context.sequence}`;
 
@@ -65,7 +61,8 @@ export class OpenCodeAdapter implements RuntimeAdapter {
   }
 
   async interrupt(_context: ExecutionContext): Promise<boolean> {
-    return this.client.session.abort({ path: { id: this.sessionId } });
+    const result = await this.client.session.interrupt({ sessionID: this.sessionId });
+    return result.interrupted;
   }
 
   async rejectOrRestore(
@@ -78,16 +75,22 @@ export class OpenCodeAdapter implements RuntimeAdapter {
       throw new Error(`No OpenCode restore handle for mutation ${mutation.id}`);
     }
 
-    return this.client.session.revert({
-      path: { id: this.sessionId },
-      body: handle,
+    await this.client.session.revert.stage({
+      sessionID: this.sessionId,
+      messageID: handle.messageID,
+      files: true,
     });
+    await this.client.session.revert.commit({ sessionID: this.sessionId });
+    return true;
   }
 
   async sendFeedback(_context: ExecutionContext, text?: string): Promise<void> {
+    // `steer` delivers feedback to this session without waiting for a new
+    // assistant response, so recovery can return control to the same runtime.
     await this.client.session.prompt({
-      path: { id: this.sessionId },
-      body: { text: text ?? "" },
+      sessionID: this.sessionId,
+      text: text ?? "",
+      delivery: "steer",
     });
   }
 }
