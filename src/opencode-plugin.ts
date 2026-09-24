@@ -10,6 +10,11 @@ import {
 import type { VerificationResult, Verifier } from "./verification.js";
 import { resolve } from "node:path";
 import { OpenCodeMutationCapture } from "./opencode-mutation-capture.js";
+import {
+  runWorkflow,
+  type RuntimeAdapter,
+  type WorkflowResult,
+} from "./workflow.js";
 
 export type OpenCodeTcrSession = {
   sessionId: string;
@@ -51,6 +56,10 @@ export type OpenCodeTcrPluginState = {
     sessionId: string,
     observeMutation: (context: ExecutionContext) => Promise<Mutation>,
   ): Promise<OpenCodeVerifiedMutation | undefined>;
+  supervisePendingMutation(
+    sessionId: string,
+    adapter: RuntimeAdapter,
+  ): Promise<WorkflowResult | undefined>;
   disposeSession(sessionId: string): void;
   dispose(): void;
 };
@@ -168,6 +177,25 @@ export function createOpenCodeTcrPluginState(
         mutation,
         verification: await verifier(mutation),
       };
+    },
+    async supervisePendingMutation(sessionId, adapter) {
+      const session = sessions.get(sessionId);
+      if (session === undefined || !mutationCapture.hasPendingMutation(sessionId)) {
+        return undefined;
+      }
+
+      const result = await runWorkflow(
+        session.context,
+        adapter,
+        verifier,
+        { scopeGuard: session.scopeGuard },
+      );
+      mutationCapture.clearSession(sessionId);
+      sessions.set(sessionId, {
+        ...session,
+        context: { ...session.context, sequence: session.context.sequence + 1 },
+      });
+      return result;
     },
     disposeSession(sessionId) {
       sessions.delete(sessionId);
