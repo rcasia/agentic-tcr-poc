@@ -55,6 +55,13 @@ The RFC does not impose a fixed maximum size or require a mutation to correspond
 
 The POC should favor mutations that are **quick to capture, quick to verify, and clear to restore**. A very large mutation is not invalid by itself, but it may be a useful smell because it increases the amount of work that must be verified or restored together.
 
+The implementation validates captured mutation association with the current
+execution, including matching execution identity and sequence. Callers may
+provide `MutationScopeGuard` to enforce increasing sequence numbers and stable
+workspace/file-scope identifiers across an execution. Agent count, workspace
+setup, and file-scope provisioning remain integration responsibilities. The
+POC intentionally imposes no maximum mutation size or file-count threshold.
+
 ## Verification
 
 Verification is intentionally part of the tight agent feedback loop. The initial POC should use verification that completes quickly enough to keep the workflow interactive and continuous.

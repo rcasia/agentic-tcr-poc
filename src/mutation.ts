@@ -23,6 +23,8 @@ export type ExecutionContext = {
   executionId: string;
   /** Optional workspace scope (e.g. worktree). Single workspace in the POC. */
   workspaceId?: string;
+  /** Optional caller-defined file scope within the workspace. */
+  scopeId?: string;
   /**
    * Monotonic sequence number within the execution.
    * Enforces the POC's sequential-mutation ordering.
@@ -68,6 +70,91 @@ export type Mutation = {
   /** ISO-8601 capture timestamp, for ordering/debug. */
   capturedAt?: string;
 };
+
+export class MutationContextError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MutationContextError";
+  }
+}
+
+/** Validates that a captured mutation belongs to the current execution scope. */
+export function assertMutationContext(
+  mutation: Mutation,
+  context: ExecutionContext,
+): void {
+  const execution = mutation.execution;
+  if (execution === undefined) {
+    throw new MutationContextError("Mutation has no execution context");
+  }
+  if (execution.executionId !== context.executionId) {
+    throw new MutationContextError("Mutation belongs to a different execution");
+  }
+  if (execution.workspaceId !== undefined
+    && context.workspaceId !== undefined
+    && execution.workspaceId !== context.workspaceId) {
+    throw new MutationContextError("Mutation belongs to a different workspace");
+  }
+  if (execution.scopeId !== undefined
+    && context.scopeId !== undefined
+    && execution.scopeId !== context.scopeId) {
+    throw new MutationContextError("Mutation belongs to a different file scope");
+  }
+  if (execution.sequence !== context.sequence) {
+    throw new MutationContextError("Mutation sequence does not match the execution context");
+  }
+}
+
+type ScopeState = {
+  workspaceId?: string;
+  scopeId?: string;
+  sequence: number;
+};
+
+/**
+ * Optional stateful boundary for the POC's sequential execution assumption.
+ * It enforces ordering and stable workspace/scope identity, but never limits
+ * the number of files or lines in a mutation.
+ */
+export class MutationScopeGuard {
+  private readonly executions = new Map<string, ScopeState>();
+
+  validate(context: ExecutionContext): void {
+    if (!Number.isInteger(context.sequence) || context.sequence < 1) {
+      throw new MutationContextError("Execution sequence must be a positive integer");
+    }
+
+    const previous = this.executions.get(context.executionId);
+    if (previous === undefined) {
+      this.executions.set(context.executionId, {
+        workspaceId: context.workspaceId,
+        scopeId: context.scopeId,
+        sequence: context.sequence,
+      });
+      return;
+    }
+
+    if (previous.workspaceId !== undefined
+      && context.workspaceId !== undefined
+      && previous.workspaceId !== context.workspaceId) {
+      throw new MutationContextError("Execution changed workspace");
+    }
+    if (previous.scopeId !== undefined
+      && context.scopeId !== undefined
+      && previous.scopeId !== context.scopeId) {
+      throw new MutationContextError("Execution changed file scope");
+    }
+    if (context.sequence <= previous.sequence) {
+      throw new MutationContextError("Mutation sequence must increase within an execution");
+    }
+
+    this.executions.set(context.executionId, {
+      workspaceId: context.workspaceId ?? previous.workspaceId,
+      scopeId: context.scopeId ?? previous.scopeId,
+      sequence: context.sequence,
+    });
+  }
+}
 
 /**
  * Intentionally omitted fields (belong to the adapter, not the domain):

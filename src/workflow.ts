@@ -3,6 +3,10 @@ import type {
   Mutation,
 } from "./mutation.js";
 import {
+  assertMutationContext,
+  type MutationScopeGuard,
+} from "./mutation.js";
+import {
   type MetricsRecorder,
   type VerificationMode,
   type WorkflowMeasurement,
@@ -49,6 +53,7 @@ export type WorkflowResult = {
 
 export type WorkflowOptions = {
   metrics?: MetricsRecorder;
+  scopeGuard?: MutationScopeGuard;
   objectiveId?: string;
   objectiveCompleted?: boolean;
   verificationMode?: VerificationMode;
@@ -66,6 +71,7 @@ export async function runWorkflow(
   verify: Verifier,
   options: WorkflowOptions = {},
 ): Promise<WorkflowResult> {
+  options.scopeGuard?.validate(context);
   const now = options.now ?? (() => performance.now());
   const observationStartedAt = now();
   const capturedMutation = await adapter.observeMutation(context);
@@ -163,7 +169,9 @@ function associateExecution(
   mutation: Mutation,
   context: ExecutionContext,
 ): Mutation {
-  return mutation.execution === undefined
+  const associated = mutation.execution === undefined
     ? { ...mutation, execution: context }
     : mutation;
+  assertMutationContext(associated, context);
+  return associated;
 }

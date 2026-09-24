@@ -4,7 +4,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import type { ExecutionContext, FileChange, Mutation } from "../src/mutation.js";
+import {
+  assertMutationContext,
+  MutationScopeGuard,
+  type ExecutionContext,
+  type FileChange,
+  type Mutation,
+} from "../src/mutation.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const mutationSource = readFileSync(join(here, "../src/mutation.ts"), "utf8");
@@ -25,6 +31,49 @@ test("execution context models the POC sequential-mutation ordering", () => {
 
   assert.ok(second.sequence > first.sequence);
   assert.equal(second.executionId, first.executionId);
+});
+
+test("scope guard enforces increasing sequence and stable workspace/file scope", () => {
+  const guard = new MutationScopeGuard();
+  guard.validate({ executionId: "exec-guard", workspaceId: "ws-1", scopeId: "scope-1", sequence: 1 });
+  guard.validate({ executionId: "exec-guard", workspaceId: "ws-1", scopeId: "scope-1", sequence: 2 });
+
+  assert.throws(
+    () => guard.validate({ executionId: "exec-guard", workspaceId: "ws-1", scopeId: "scope-1", sequence: 2 }),
+    /sequence must increase/,
+  );
+  assert.throws(
+    () => guard.validate({ executionId: "exec-guard", workspaceId: "ws-2", scopeId: "scope-1", sequence: 3 }),
+    /changed workspace/,
+  );
+  assert.throws(
+    () => guard.validate({ executionId: "exec-guard", workspaceId: "ws-1", scopeId: "scope-2", sequence: 3 }),
+    /changed file scope/,
+  );
+});
+
+test("captured mutation context must match execution identity and sequence", () => {
+  const context: ExecutionContext = {
+    executionId: "exec-context",
+    workspaceId: "ws-1",
+    scopeId: "scope-1",
+    sequence: 4,
+  };
+  const mutation: Mutation = {
+    id: "mutation-context",
+    execution: context,
+    changes: [{ path: "src/example.ts" }],
+  };
+
+  assert.doesNotThrow(() => assertMutationContext(mutation, context));
+  assert.throws(
+    () => assertMutationContext(mutation, { ...context, executionId: "exec-other" }),
+    /different execution/,
+  );
+  assert.throws(
+    () => assertMutationContext(mutation, { ...context, sequence: 5 }),
+    /sequence does not match/,
+  );
 });
 
 test("mutation retains id + execution + changes for adapter-side restore correlation", () => {
