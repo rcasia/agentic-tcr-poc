@@ -3,6 +3,11 @@ import type {
   Mutation,
 } from "./mutation.js";
 import {
+  type MetricsRecorder,
+  type VerificationMode,
+  type WorkflowMeasurement,
+} from "./metrics.js";
+import {
   supervise,
   type SupervisorDecision,
   type Verifier,
@@ -32,6 +37,15 @@ export type WorkflowResult = {
   decision: SupervisorDecision;
 };
 
+export type WorkflowOptions = {
+  metrics?: MetricsRecorder;
+  objectiveId?: string;
+  objectiveCompleted?: boolean;
+  verificationMode?: VerificationMode;
+  executionDurationMs?: number;
+  now?: () => number;
+};
+
 /**
  * Captures and verifies one mutation, recovering failures in the same
  * execution context before returning control to the caller.
@@ -40,20 +54,95 @@ export async function runWorkflow(
   context: ExecutionContext,
   adapter: RuntimeAdapter,
   verify: Verifier,
+  options: WorkflowOptions = {},
 ): Promise<WorkflowResult> {
+  const now = options.now ?? (() => performance.now());
+  const observationStartedAt = now();
   const capturedMutation = await adapter.observeMutation(context);
+  const observationLatencyMs = now() - observationStartedAt;
   const mutation = associateExecution(capturedMutation, context);
+  const verificationStartedAt = now();
   const decision = await supervise(mutation, verify);
+  const verificationLatencyMs = now() - verificationStartedAt;
 
   if (decision.type === "ACCEPT") {
+    recordMetrics(options.metrics, {
+      mutation,
+      context,
+      verificationStatus: "PASS",
+      observationLatencyMs,
+      verificationLatencyMs,
+      workflowOverheadMs: observationLatencyMs + verificationLatencyMs,
+      options,
+    });
     return { context, decision };
   }
 
+  const interruptStartedAt = now();
   await adapter.interrupt(context);
+  const interruptLatencyMs = now() - interruptStartedAt;
+  const restoreStartedAt = now();
   await adapter.rejectOrRestore(context, mutation);
+  const restoreLatencyMs = now() - restoreStartedAt;
+  const feedbackStartedAt = now();
   await adapter.sendFeedback(context, decision.feedback);
+  const feedbackLatencyMs = now() - feedbackStartedAt;
+
+  recordMetrics(options.metrics, {
+    mutation,
+    context,
+    verificationStatus: "FAIL",
+    observationLatencyMs,
+    verificationLatencyMs,
+    interruptLatencyMs,
+    restoreLatencyMs,
+    feedbackLatencyMs,
+    workflowOverheadMs: observationLatencyMs
+      + verificationLatencyMs
+      + interruptLatencyMs
+      + restoreLatencyMs
+      + feedbackLatencyMs,
+    options,
+  });
 
   return { context, decision };
+}
+
+function recordMetrics(
+  metrics: MetricsRecorder | undefined,
+  input: {
+    mutation: Mutation;
+    context: ExecutionContext;
+    verificationStatus: "PASS" | "FAIL";
+    observationLatencyMs: number;
+    verificationLatencyMs: number;
+    interruptLatencyMs?: number;
+    restoreLatencyMs?: number;
+    feedbackLatencyMs?: number;
+    workflowOverheadMs: number;
+    options: WorkflowOptions;
+  },
+): void {
+  if (metrics === undefined) {
+    return;
+  }
+
+  const measurement: WorkflowMeasurement = {
+    mutation: input.mutation,
+    executionId: input.context.executionId,
+    verificationStatus: input.verificationStatus,
+    verificationMode: input.options.verificationMode ?? "immediate",
+    observationLatencyMs: input.observationLatencyMs,
+    verificationLatencyMs: input.verificationLatencyMs,
+    interruptLatencyMs: input.interruptLatencyMs,
+    restoreLatencyMs: input.restoreLatencyMs,
+    feedbackLatencyMs: input.feedbackLatencyMs,
+    workflowOverheadMs: input.workflowOverheadMs,
+    executionDurationMs: input.options.executionDurationMs,
+    objectiveId: input.options.objectiveId,
+    objectiveCompleted: input.options.objectiveCompleted ?? false,
+  };
+  metrics.record(measurement);
 }
 
 function associateExecution(
