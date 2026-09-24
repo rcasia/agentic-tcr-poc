@@ -8,6 +8,9 @@ import { createDemoAdapter, main, runDemo } from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const indexSource = readFileSync(join(here, "../src/index.ts"), "utf8");
+const packageManifest = JSON.parse(readFileSync(join(here, "../package.json"), "utf8")) as {
+  bin?: Record<string, string>;
+};
 
 test("POC starts with a TypeScript test harness", () => {
   assert.equal(typeof main, "function");
@@ -58,4 +61,8 @@ test("generic entrypoint carries no runtime-specific dependencies", () => {
   }
   assert.match(indexSource, /runWorkflow/);
   assert.match(indexSource, /createProjectVerifier/);
+});
+
+test("package exposes the agentic-tcr executable", () => {
+  assert.equal(packageManifest.bin?.["agentic-tcr"], "./dist/cli.js");
 });

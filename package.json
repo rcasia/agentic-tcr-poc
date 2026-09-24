@@ -2,10 +2,13 @@
   "name": "agentic-tcr-poc",
   "private": true,
   "type": "module",
+  "bin": {
+    "agentic-tcr": "./dist/cli.js"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "test": "node --test --import tsx \"test/**/*.test.ts\"",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/cli.ts"
   },
   "devDependencies": {
     "@opencode/client": "^2.0.16",

@@ -77,8 +77,3 @@ export async function main(): Promise<void> {
     }
   }
 }
-
-const entry = process.argv[1] ?? "";
-if (entry.endsWith("index.ts") || entry.endsWith("index.js")) {
-  void main();
-}
