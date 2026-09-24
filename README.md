@@ -61,6 +61,15 @@ Verification is intentionally part of the tight agent feedback loop. The initial
 
 The exact verification toolchain is not prescribed by the RFC. Depending on the POC implementation, verification may include tests, type checking, linting, builds, repository invariants, or other deterministic checks.
 
+## Evaluation Evidence
+
+`EvaluationMetrics` can receive a `JsonlMetricsStore` and run metadata to append
+raw per-mutation measurements without changing the workflow's acceptance
+decision. `JsonlMetricsStore.read(runId)` inspects persisted records and
+`exportRun(runId)` returns one completed run as JSONL. Missing evidence is
+reported as an empty collection; malformed records are rejected with a line
+number so evidence corruption is visible.
+
 ## Failure and recovery
 
 When verification fails, the POC should preserve the RFC's failure semantics:

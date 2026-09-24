@@ -2,6 +2,14 @@ import type { Mutation } from "./mutation.js";
 
 export type VerificationMode = "immediate" | "batched";
 
+export type MetricsRunMetadata = {
+  runId: string;
+  startedAt: string;
+  executionId?: string;
+  objectiveId?: string;
+  verificationMode?: VerificationMode;
+};
+
 export type WorkflowMeasurement = {
   mutation: Mutation;
   executionId: string;
@@ -60,6 +68,22 @@ export type EvaluationReport = {
   objectives: readonly ObjectiveMetrics[];
 };
 
+export type PersistedMetricRecord = {
+  schemaVersion: 1;
+  run: MetricsRunMetadata;
+  mutationSequence: number;
+  measurement: MutationMetrics;
+};
+
+export type MetricsEvidenceSink = {
+  append(record: PersistedMetricRecord): void;
+};
+
+export type EvaluationMetricsOptions = {
+  run?: MetricsRunMetadata;
+  evidence?: MetricsEvidenceSink;
+};
+
 export type MetricsRecorder = {
   record(measurement: WorkflowMeasurement): void;
   report(): EvaluationReport;
@@ -79,6 +103,12 @@ type ObjectiveState = {
 export class EvaluationMetrics implements MetricsRecorder {
   private readonly records: MutationMetrics[] = [];
   private readonly objectives = new Map<string, ObjectiveState>();
+
+  constructor(private readonly options: EvaluationMetricsOptions = {}) {
+    if (options.evidence !== undefined && options.run === undefined) {
+      throw new Error("Metrics evidence requires run metadata");
+    }
+  }
 
   record(measurement: WorkflowMeasurement): void {
     const state = measurement.objectiveId === undefined
@@ -132,6 +162,15 @@ export class EvaluationMetrics implements MetricsRecorder {
     };
 
     this.records.push(metric);
+
+    if (this.options.evidence !== undefined && this.options.run !== undefined) {
+      this.options.evidence.append({
+        schemaVersion: 1,
+        run: this.options.run,
+        mutationSequence: metric.sequence,
+        measurement: metric,
+      });
+    }
 
     if (state !== undefined) {
       state.mutations += 1;
