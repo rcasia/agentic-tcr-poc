@@ -1,12 +1,13 @@
 import {
   MutationScopeGuard,
   type ExecutionContext,
+  type Mutation,
 } from "./mutation.js";
 import {
   createProjectVerifier,
   type ConfiguredProjectVerifier,
 } from "./project-verification.js";
-import type { Verifier } from "./verification.js";
+import type { VerificationResult, Verifier } from "./verification.js";
 import { resolve } from "node:path";
 import { OpenCodeMutationCapture } from "./opencode-mutation-capture.js";
 
@@ -14,6 +15,11 @@ export type OpenCodeTcrSession = {
   sessionId: string;
   context: ExecutionContext;
   scopeGuard: MutationScopeGuard;
+};
+
+export type OpenCodeVerifiedMutation = {
+  mutation: Mutation;
+  verification: VerificationResult;
 };
 
 export type OpenCodeSessionInfo = {
@@ -41,22 +47,32 @@ export type OpenCodeTcrPluginState = {
   nextMutationContext(sessionId: string): ExecutionContext;
   getSession(sessionId: string): OpenCodeTcrSession | undefined;
   handleEvent(event: OpenCodeSessionLifecycleEvent): OpenCodeTcrSession | undefined;
+  captureAndVerify(
+    sessionId: string,
+    observeMutation: (context: ExecutionContext) => Promise<Mutation>,
+  ): Promise<OpenCodeVerifiedMutation | undefined>;
   disposeSession(sessionId: string): void;
   dispose(): void;
 };
 
+export type OpenCodeTcrPluginOptions = {
+  verifier?: Verifier;
+};
+
 export function createOpenCodeTcrPluginState(
   projectRoot: string,
+  options: OpenCodeTcrPluginOptions = {},
 ): OpenCodeTcrPluginState {
   const resolvedProjectRoot = resolve(projectRoot);
   const configured = createProjectVerifier(resolvedProjectRoot);
+  const verifier = options.verifier ?? configured.verifier;
   const sessions = new Map<string, OpenCodeTcrSession>();
   const mutationCapture = new OpenCodeMutationCapture();
 
   return {
     projectRoot: resolvedProjectRoot,
     configuration: configured.configuration,
-    verifier: configured.verifier,
+    verifier,
     sessions,
     mutationCapture,
     initializeSession(sessionId, info = {}) {
@@ -134,6 +150,24 @@ export function createOpenCodeTcrPluginState(
         return this.initializeSession(sessionId, info);
       }
       return sessions.get(sessionId);
+    },
+    async captureAndVerify(sessionId, observeMutation) {
+      const session = sessions.get(sessionId);
+      if (session === undefined) {
+        return undefined;
+      }
+      const mutation = await mutationCapture.captureOnIdle(
+        sessionId,
+        session.context,
+        observeMutation,
+      );
+      if (mutation === undefined) {
+        return undefined;
+      }
+      return {
+        mutation,
+        verification: await verifier(mutation),
+      };
     },
     disposeSession(sessionId) {
       sessions.delete(sessionId);

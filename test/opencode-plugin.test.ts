@@ -92,3 +92,28 @@ test("local plugin initializes, handles session lifecycle, and disposes", async 
   });
   await plugin.dispose();
 });
+
+test("plugin verifies a captured mutation with the project verifier", async () => {
+  const state = createOpenCodeTcrPluginState(process.cwd(), {
+    verifier: async () => ({ status: "PASS" }),
+  });
+  state.initializeSession("ses-verify");
+  state.handleEvent({
+    type: "file.edited",
+    properties: { sessionID: "ses-verify", file: "src/example.ts" },
+  });
+
+  const seen: string[] = [];
+  const result = await state.captureAndVerify("ses-verify", async (context) => {
+    seen.push(context.executionId);
+    return {
+      id: "mutation-plugin-verify",
+      execution: context,
+      changes: [{ path: "src/example.ts", additions: 1, deletions: 0 }],
+    };
+  });
+
+  assert.deepEqual(seen, ["opencode:ses-verify"]);
+  assert.equal(result?.mutation.id, "mutation-plugin-verify");
+  assert.equal(result?.verification.status, "PASS");
+});
