@@ -28,6 +28,11 @@ test("session lifecycle keeps idle sessions and cleans up errors/deletions", () 
     properties: { info: { id: "ses-one", directory: process.cwd() } },
   });
   state.handleEvent({
+    type: "file.edited",
+    properties: { sessionID: "ses-one", file: "src/example.ts" },
+  });
+  assert.equal(state.mutationCapture.hasPendingMutation("ses-one"), true);
+  state.handleEvent({
     type: "session.idle",
     properties: { info: { id: "ses-one" } },
   });

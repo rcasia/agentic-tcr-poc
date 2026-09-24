@@ -7,7 +7,8 @@ import {
   type ConfiguredProjectVerifier,
 } from "./project-verification.js";
 import type { Verifier } from "./verification.js";
-import { isAbsolute, resolve } from "node:path";
+import { resolve } from "node:path";
+import { OpenCodeMutationCapture } from "./opencode-mutation-capture.js";
 
 export type OpenCodeTcrSession = {
   sessionId: string;
@@ -26,6 +27,7 @@ export type OpenCodeSessionLifecycleEvent = {
   properties?: {
     info?: OpenCodeSessionInfo;
     sessionID?: string;
+    file?: string;
   };
 };
 
@@ -34,6 +36,7 @@ export type OpenCodeTcrPluginState = {
   configuration: ConfiguredProjectVerifier["configuration"];
   verifier: Verifier;
   sessions: ReadonlyMap<string, OpenCodeTcrSession>;
+  mutationCapture: OpenCodeMutationCapture;
   initializeSession(sessionId: string, info?: OpenCodeSessionInfo): OpenCodeTcrSession;
   nextMutationContext(sessionId: string): ExecutionContext;
   getSession(sessionId: string): OpenCodeTcrSession | undefined;
@@ -48,12 +51,14 @@ export function createOpenCodeTcrPluginState(
   const resolvedProjectRoot = resolve(projectRoot);
   const configured = createProjectVerifier(resolvedProjectRoot);
   const sessions = new Map<string, OpenCodeTcrSession>();
+  const mutationCapture = new OpenCodeMutationCapture();
 
   return {
     projectRoot: resolvedProjectRoot,
     configuration: configured.configuration,
     verifier: configured.verifier,
     sessions,
+    mutationCapture,
     initializeSession(sessionId, info = {}) {
       const existing = sessions.get(sessionId);
       if (existing !== undefined) {
@@ -95,6 +100,16 @@ export function createOpenCodeTcrPluginState(
       return sessions.get(sessionId);
     },
     handleEvent(event) {
+      const eventSessionId = event.properties?.sessionID;
+      if (event.type === "file.edited"
+        && eventSessionId !== undefined
+        && event.properties?.file !== undefined) {
+        mutationCapture.recordFileEdited({
+          type: "file.edited",
+          properties: { sessionID: eventSessionId, file: event.properties.file },
+        });
+        return sessions.get(eventSessionId);
+      }
       const info = event.properties?.info;
       const sessionId = info?.id ?? event.properties?.sessionID;
       if (sessionId === undefined) {
@@ -107,6 +122,7 @@ export function createOpenCodeTcrPluginState(
       if (event.type === "session.error" || event.type === "session.deleted") {
         const session = sessions.get(sessionId);
         sessions.delete(sessionId);
+        mutationCapture.clearSession(sessionId);
         return session;
       }
       if (
@@ -121,6 +137,7 @@ export function createOpenCodeTcrPluginState(
     },
     disposeSession(sessionId) {
       sessions.delete(sessionId);
+      mutationCapture.clearSession(sessionId);
     },
     dispose() {
       sessions.clear();
