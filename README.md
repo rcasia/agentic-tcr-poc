@@ -106,6 +106,10 @@ runtime-specific lifecycle wiring is isolated from the generic workflow;
 mutation capture and recovery hooks are added by the subsequent integration
 layers.
 
+Repeatable fixture setup is documented in [`docs/opencode-plugin.md`](docs/opencode-plugin.md)
+and exercised by the deterministic plugin fixture test. Real OpenCode runs
+remain opt-in because they require provider credentials and a configured model.
+
 ## Evaluation Evidence
 
 `EvaluationMetrics` can receive a `JsonlMetricsStore` and run metadata to append

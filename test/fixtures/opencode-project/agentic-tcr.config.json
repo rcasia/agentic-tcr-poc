@@ -1,0 +1,12 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "fixture-check",
+        "command": "node",
+        "args": ["-e", "process.exit(0)"],
+        "timeoutMs": 10000
+      }
+    ]
+  }
+}
