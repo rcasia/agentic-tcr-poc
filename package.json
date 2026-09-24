@@ -8,6 +8,7 @@
     "dev": "tsx src/index.ts"
   },
   "devDependencies": {
+    "@types/node": "^26.6.2",
     "tsx": "latest",
     "typescript": "latest"
   }

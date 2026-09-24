@@ -1,4 +1,4 @@
-import type { Mutation } from "./supervisor";
+import type { Mutation } from "./supervisor.js";
 
 export type FileDiff = {
   file: string;

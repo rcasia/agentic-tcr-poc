@@ -1,64 +1,71 @@
-import { describe, expect, it, vi } from "vitest";
-import { OpenCodeAdapter, type OpenCodeClient } from "../src/opencode-adapter";
+import test from "node:test";
+import assert from "node:assert/strict";
 
-describe("OpenCodeAdapter", () => {
-  it("observes the session diff without deciding acceptance", async () => {
-    const client: OpenCodeClient = {
-      session: {
-        diff: vi.fn().mockResolvedValue([{ file: "src/index.ts" }]),
-        abort: vi.fn(),
-        revert: vi.fn(),
-        prompt: vi.fn(),
+import { OpenCodeAdapter, type OpenCodeClient } from "../src/opencode-adapter.js";
+
+function makeCalls() {
+  const calls: { name: string; arg: unknown }[] = [];
+  const client: OpenCodeClient = {
+    session: {
+      diff: async (input: { path: { id: string }; query?: { messageID?: string } }) => {
+        calls.push({ name: "diff", arg: input });
+        return [{ file: "src/index.ts" }];
       },
-    };
+      abort: async (input: { path: { id: string } }) => {
+        calls.push({ name: "abort", arg: input });
+        return true;
+      },
+      revert: async (input: {
+        path: { id: string };
+        body: { messageID: string; partID?: string };
+      }) => {
+        calls.push({ name: "revert", arg: input });
+        return true;
+      },
+      prompt: async (input: { path: { id: string }; body: { text: string } }) => {
+        calls.push({ name: "prompt", arg: input });
+        return undefined;
+      },
+    },
+  };
+  return { client, calls };
+}
 
-    const adapter = new OpenCodeAdapter(client, "ses_test");
-    const mutation = await adapter.observeMutation("msg_1");
+test("observes the session diff without deciding acceptance", async () => {
+  const { client, calls } = makeCalls();
 
-    expect(mutation.id).toBe("msg_1");
-    expect(client.session.diff).toHaveBeenCalledWith({
-      path: { id: "ses_test" },
-      query: { messageID: "msg_1" },
-    });
+  const adapter = new OpenCodeAdapter(client, "ses_test");
+  const mutation = await adapter.observeMutation("msg_1");
+
+  assert.equal(mutation.id, "msg_1");
+  assert.deepEqual(calls[0], {
+    name: "diff",
+    arg: { path: { id: "ses_test" }, query: { messageID: "msg_1" } },
   });
+});
 
-  it("maps interrupt to OpenCode abort", async () => {
-    const client: OpenCodeClient = {
-      session: {
-        diff: vi.fn(),
-        abort: vi.fn().mockResolvedValue(true),
-        revert: vi.fn(),
-        prompt: vi.fn(),
-      },
-    };
+test("maps interrupt to OpenCode abort", async () => {
+  const { client, calls } = makeCalls();
 
-    const adapter = new OpenCodeAdapter(client, "ses_test");
-    await adapter.interrupt();
+  const adapter = new OpenCodeAdapter(client, "ses_test");
+  await adapter.interrupt();
 
-    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: "ses_test" } });
+  assert.deepEqual(calls[0], { name: "abort", arg: { path: { id: "ses_test" } } });
+});
+
+test("maps rejection to OpenCode revert and feedback to the same session", async () => {
+  const { client, calls } = makeCalls();
+
+  const adapter = new OpenCodeAdapter(client, "ses_test");
+  await adapter.rejectOrRestore("msg_1", "part_1");
+  await adapter.sendFeedback("Fix the failing test");
+
+  assert.deepEqual(calls[0], {
+    name: "revert",
+    arg: { path: { id: "ses_test" }, body: { messageID: "msg_1", partID: "part_1" } },
   });
-
-  it("maps rejection to OpenCode revert and feedback to the same session", async () => {
-    const client: OpenCodeClient = {
-      session: {
-        diff: vi.fn(),
-        abort: vi.fn(),
-        revert: vi.fn().mockResolvedValue(true),
-        prompt: vi.fn().mockResolvedValue(undefined),
-      },
-    };
-
-    const adapter = new OpenCodeAdapter(client, "ses_test");
-    await adapter.rejectOrRestore("msg_1", "part_1");
-    await adapter.sendFeedback("Fix the failing test");
-
-    expect(client.session.revert).toHaveBeenCalledWith({
-      path: { id: "ses_test" },
-      body: { messageID: "msg_1", partID: "part_1" },
-    });
-    expect(client.session.prompt).toHaveBeenCalledWith({
-      path: { id: "ses_test" },
-      body: { text: "Fix the failing test" },
-    });
+  assert.deepEqual(calls[1], {
+    name: "prompt",
+    arg: { path: { id: "ses_test" }, body: { text: "Fix the failing test" } },
   });
 });
