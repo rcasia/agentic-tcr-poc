@@ -97,6 +97,15 @@ The project configuration is owned by the development environment; the agent
 does not select or weaken checks for an individual mutation. The generic
 workflow receives only the `Verifier` PASS/FAIL result.
 
+## OpenCode Plugin
+
+OpenCode loads the project-local `.opencode/plugins/agentic-tcr.ts` entrypoint
+automatically when started from this repository. The plugin discovers the
+project verifier and creates an execution context for each session event. Its
+runtime-specific lifecycle wiring is isolated from the generic workflow;
+mutation capture and recovery hooks are added by the subsequent integration
+layers.
+
 ## Evaluation Evidence
 
 `EvaluationMetrics` can receive a `JsonlMetricsStore` and run metadata to append
