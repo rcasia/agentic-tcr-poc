@@ -2,7 +2,7 @@ import type {
   OpenCodeClient as OfficialOpenCodeClient,
 } from "@opencode/client";
 import type { ExecutionContext, Mutation } from "./mutation.js";
-import type { RuntimeAdapter } from "./workflow.js";
+import type { RuntimeAdapter, RuntimeContinuation } from "./workflow.js";
 
 type OfficialSessionClient = OfficialOpenCodeClient["session"];
 
@@ -84,7 +84,10 @@ export class OpenCodeAdapter implements RuntimeAdapter {
     return true;
   }
 
-  async sendFeedback(_context: ExecutionContext, text?: string): Promise<void> {
+  async sendFeedback(
+    context: ExecutionContext,
+    text?: string,
+  ): Promise<RuntimeContinuation> {
     // `steer` delivers feedback to this session without waiting for a new
     // assistant response, so recovery can return control to the same runtime.
     await this.client.session.prompt({
@@ -92,5 +95,6 @@ export class OpenCodeAdapter implements RuntimeAdapter {
       text: text ?? "",
       delivery: "steer",
     });
+    return { context };
   }
 }

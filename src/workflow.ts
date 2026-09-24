@@ -14,6 +14,16 @@ import {
 } from "./supervisor.js";
 
 /**
+ * The execution context made available for the next agent turn.
+ *
+ * In this POC, feedback delivery is also the continuation mechanism. A
+ * separate `continue` operation would duplicate that runtime capability.
+ */
+export type RuntimeContinuation = {
+  context: ExecutionContext;
+};
+
+/**
  * Runtime capabilities required by the generic TCR workflow.
  *
  * Implementations own runtime-specific identifiers and API calls. The
@@ -29,7 +39,7 @@ export type RuntimeAdapter = {
   sendFeedback(
     context: ExecutionContext,
     feedback?: string,
-  ): Promise<void>;
+  ): Promise<RuntimeContinuation>;
 };
 
 export type WorkflowResult = {
@@ -85,8 +95,12 @@ export async function runWorkflow(
   await adapter.rejectOrRestore(context, mutation);
   const restoreLatencyMs = now() - restoreStartedAt;
   const feedbackStartedAt = now();
-  await adapter.sendFeedback(context, decision.feedback);
+  const continuation = await adapter.sendFeedback(context, decision.feedback);
   const feedbackLatencyMs = now() - feedbackStartedAt;
+
+  if (continuation.context.executionId !== context.executionId) {
+    throw new Error("Runtime continuation changed the execution context");
+  }
 
   recordMetrics(options.metrics, {
     mutation,
@@ -105,7 +119,7 @@ export async function runWorkflow(
     options,
   });
 
-  return { context, decision };
+  return { context: continuation.context, decision };
 }
 
 function recordMetrics(

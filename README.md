@@ -81,6 +81,14 @@ If the POC uses a concrete coding-agent runtime such as OpenCode, runtime-specif
 
 The runtime adapter must not become the source of truth for verification or acceptance. Those remain workflow responsibilities.
 
+### Continuation contract
+
+The POC treats feedback delivery as the continuation capability. The generic
+adapter's `sendFeedback()` operation must deliver feedback to the same
+execution and resolve with a `RuntimeContinuation` containing that execution
+context. The workflow rejects a continuation that changes the execution
+identity; no separate runtime-specific `continue` operation is needed.
+
 ## What is intentionally out of scope
 
 The initial POC does not attempt to solve:

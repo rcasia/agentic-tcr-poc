@@ -24,6 +24,7 @@ function adapterFor(
     },
     async sendFeedback(context, feedback) {
       events.push(`feedback:${context.executionId}:${feedback ?? ""}`);
+      return { context };
     },
   };
 }
@@ -80,4 +81,26 @@ test("workflow associates an uncoupled capture with the supplied execution", asy
   });
 
   assert.equal(result.decision.mutation.execution, context);
+});
+
+test("workflow rejects a continuation that changes execution identity", async () => {
+  const context = { executionId: "exec-original", sequence: 4 };
+  const adapter: RuntimeAdapter = {
+    async observeMutation() {
+      return { id: "mutation-4", execution: context };
+    },
+    async interrupt() {},
+    async rejectOrRestore() {},
+    async sendFeedback() {
+      return { context: { executionId: "exec-new", sequence: 4 } };
+    },
+  };
+
+  await assert.rejects(
+    runWorkflow(context, adapter, async () => ({
+      status: "FAIL",
+      feedback: "failure",
+    })),
+    /Runtime continuation changed the execution context/,
+  );
 });

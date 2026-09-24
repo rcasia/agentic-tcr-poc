@@ -12,7 +12,9 @@ function adapterFor(mutation: Mutation): RuntimeAdapter {
     },
     async interrupt() {},
     async rejectOrRestore() {},
-    async sendFeedback() {},
+    async sendFeedback(context) {
+      return { context };
+    },
   };
 }
 

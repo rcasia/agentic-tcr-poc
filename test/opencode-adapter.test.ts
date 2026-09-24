@@ -96,7 +96,7 @@ test("restores the captured mutation and steers feedback without an assistant tu
   const mutation = await adapter.observeMutation(context);
 
   await adapter.rejectOrRestore(context, mutation);
-  await adapter.sendFeedback(context, "Fix the failing test");
+  const continuation = await adapter.sendFeedback(context, "Fix the failing test");
 
   assert.deepEqual(calls[1], {
     name: "revert.stage",
@@ -114,6 +114,7 @@ test("restores the captured mutation and steers feedback without an assistant tu
     calls.map(({ arg }) => (arg as { sessionID: string }).sessionID),
     ["ses_test", "ses_test", "ses_test", "ses_test"],
   );
+  assert.equal(continuation.context, context);
 });
 
 test("does not restore an unknown mutation", async () => {
