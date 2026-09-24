@@ -1,0 +1,18 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "tests",
+        "command": "npm",
+        "args": ["test"],
+        "timeoutMs": 120000
+      },
+      {
+        "name": "build",
+        "command": "npm",
+        "args": ["run", "build"],
+        "timeoutMs": 120000
+      }
+    ]
+  }
+}

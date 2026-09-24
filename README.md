@@ -68,6 +68,35 @@ Verification is intentionally part of the tight agent feedback loop. The initial
 
 The exact verification toolchain is not prescribed by the RFC. Depending on the POC implementation, verification may include tests, type checking, linting, builds, repository invariants, or other deterministic checks.
 
+### Project Verification Configuration
+
+The verifier discovers checks from `agentic-tcr.config.json` at the project
+root. A project may alternatively put the same `agenticTcr.verification`
+object in `package.json`:
+
+```json
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "tests",
+        "command": "npm",
+        "args": ["test"],
+        "timeoutMs": 120000
+      }
+    ]
+  }
+}
+```
+
+Checks run in declaration order and stop at the first failure. An explicit
+`configPath` or `AGENTIC_TCR_CONFIG` takes precedence over the project file;
+the package field is the fallback. Missing or invalid configuration fails
+closed with actionable feedback, rather than inventing default commands.
+The project configuration is owned by the development environment; the agent
+does not select or weaken checks for an individual mutation. The generic
+workflow receives only the `Verifier` PASS/FAIL result.
+
 ## Evaluation Evidence
 
 `EvaluationMetrics` can receive a `JsonlMetricsStore` and run metadata to append

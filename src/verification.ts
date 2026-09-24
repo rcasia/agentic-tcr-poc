@@ -39,21 +39,6 @@ export type CommandRunner = (
   check: VerificationCheck,
 ) => Promise<VerificationCommandResult>;
 
-export const DEFAULT_REPOSITORY_CHECKS: readonly VerificationCheck[] = [
-  {
-    name: "tests",
-    command: "npm",
-    args: ["test"],
-    timeoutMs: 120_000,
-  },
-  {
-    name: "build",
-    command: "npm",
-    args: ["run", "build"],
-    timeoutMs: 120_000,
-  },
-];
-
 const execFileAsync = promisify(execFile);
 
 /** Runs one explicitly configured repository command. */
@@ -96,11 +81,20 @@ export async function runVerificationCommand(
  */
 export class RepositoryVerifier {
   constructor(
-    private readonly checks: readonly VerificationCheck[] = DEFAULT_REPOSITORY_CHECKS,
+    private readonly checks: readonly VerificationCheck[],
     private readonly run: CommandRunner = runVerificationCommand,
+    private readonly configurationError?: string,
   ) {}
 
   async verify(mutation: Mutation): Promise<VerificationResult> {
+    if (this.configurationError !== undefined) {
+      return {
+        status: "FAIL",
+        feedback: this.configurationError,
+        evidence: { mutationId: mutation.id, checks: [] },
+      };
+    }
+
     const checks: VerificationCheckEvidence[] = [];
 
     for (const check of this.checks) {
