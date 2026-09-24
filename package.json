@@ -1,0 +1,14 @@
+{
+  "name": "agentic-tcr-poc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test --import tsx test/**/*.test.ts",
+    "dev": "tsx src/index.ts"
+  },
+  "devDependencies": {
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
