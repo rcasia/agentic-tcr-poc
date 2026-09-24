@@ -1,17 +1,18 @@
 import type { Mutation } from "./mutation.js";
+import type {
+  VerificationResult,
+  Verifier,
+} from "./verification.js";
 
 export type { ExecutionContext, FileChange, Mutation } from "./mutation.js";
-
-export type VerificationResult = {
-  status: "PASS" | "FAIL";
-  feedback?: string;
-};
+export type {
+  VerificationResult,
+  Verifier,
+} from "./verification.js";
 
 export type SupervisorDecision =
   | { type: "ACCEPT"; mutation: Mutation }
   | { type: "REJECT"; mutation: Mutation; feedback?: string };
-
-export type Verifier = (mutation: Mutation) => Promise<VerificationResult>;
 
 /**
  * Deterministic acceptance controller for the Agentic TCR workflow.
