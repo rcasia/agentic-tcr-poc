@@ -1,7 +1,6 @@
-export type Mutation = {
-  id: string;
-  description?: string;
-};
+import type { Mutation } from "./mutation.js";
+
+export type { ExecutionContext, FileChange, Mutation } from "./mutation.js";
 
 export type VerificationResult = {
   status: "PASS" | "FAIL";
