@@ -70,6 +70,10 @@ decision. `JsonlMetricsStore.read(runId)` inspects persisted records and
 reported as an empty collection; malformed records are rejected with a line
 number so evidence corruption is visible.
 
+`buildEvaluationReportFromStore()` derives aggregate counts, mutation size,
+objective completion, recovery, overhead, and median/P95 latency summaries
+from one or more persisted runs while retaining the raw records separately.
+
 ## Failure and recovery
 
 When verification fails, the POC should preserve the RFC's failure semantics:
