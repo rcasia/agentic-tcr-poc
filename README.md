@@ -74,6 +74,11 @@ number so evidence corruption is visible.
 objective completion, recovery, overhead, and median/P95 latency summaries
 from one or more persisted runs while retaining the raw records separately.
 
+`runBatchedBaseline()` is a separate comparison strategy: it captures a
+configured number of mutations, verifies the combined batch once, and records
+the accumulated unverified work with `verificationMode: "batched"`. It does
+not interrupt, restore, or change the immediate-verification TCR workflow.
+
 ## Failure and recovery
 
 When verification fails, the POC should preserve the RFC's failure semantics:

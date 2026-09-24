@@ -22,6 +22,7 @@ export type WorkflowMeasurement = {
   feedbackLatencyMs?: number;
   workflowOverheadMs: number;
   executionDurationMs?: number;
+  unverifiedWorkAtFailure?: number;
   objectiveId?: string;
   objectiveCompleted: boolean;
 };
@@ -114,7 +115,8 @@ export class EvaluationMetrics implements MetricsRecorder {
     const state = measurement.objectiveId === undefined
       ? undefined
       : this.objectives.get(measurement.objectiveId) ?? this.newObjective(measurement.objectiveId);
-    const unverifiedWork = (state?.mutationsSinceAccepted ?? 0) + 1;
+    const unverifiedWork = measurement.unverifiedWorkAtFailure
+      ?? (state?.mutationsSinceAccepted ?? 0) + 1;
     const isFailure = measurement.verificationStatus === "FAIL";
     const recoveryIterations = (state?.recoveryIterationsSinceAccepted ?? 0)
       + (isFailure ? 1 : 0);
